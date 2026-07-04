@@ -2,6 +2,22 @@ const { app, BrowserWindow, BrowserView, shell, Menu, screen, ipcMain } = requir
 const path = require('path');
 const fs   = require('fs');
 
+// ── Single instance lock — MUST be the very first thing that runs ───────────
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  app.quit();
+  process.exit(0);
+}
+
+// ── Crash-safety net — writes any startup error to a log file next to the
+// app's data folder, so failures are diagnosable even with no console. ──────
+process.on('uncaughtException', (err) => {
+  try {
+    const logPath = path.join(app.getPath('userData'), 'crash.log');
+    fs.writeFileSync(logPath, String(err && err.stack || err));
+  } catch {}
+});
+
 const SITE_URL     = 'https://omlife.in/my-portal/';
 const PORTAL_URL   = SITE_URL;
 const ALLOWED_HOST = 'omlife.in';
@@ -71,12 +87,7 @@ function createWindow() {
     title: 'OmLife',
     autoHideMenuBar: true,
     backgroundColor: '#0F0A1A',
-    titleBarStyle: 'hidden',
-    titleBarOverlay: {
-      color: '#0F0A1A',
-      symbolColor: '#a78bfa',
-      height: BAR_H
-    },
+    frame: false,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -211,14 +222,9 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
 
-const gotLock = app.requestSingleInstanceLock();
-if (!gotLock) {
-  app.quit();
-} else {
-  app.on('second-instance', () => {
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore();
-      mainWindow.focus();
-    }
-  });
-}
+app.on('second-instance', () => {
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+  }
+});
