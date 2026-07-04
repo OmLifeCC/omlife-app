@@ -17,6 +17,7 @@
   "build": {
     "appId": "in.omlife.desktop",
     "productName": "OmLife",
+    "publish": null,
     "directories": {
       "output": "dist"
     },
