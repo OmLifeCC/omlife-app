@@ -1,0 +1,44 @@
+{
+  "name": "omlife-desktop",
+  "version": "2.0.5",
+  "description": "OmLife Desktop App",
+  "main": "main.js",
+  "author": "OmLife",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "electron .",
+    "build:win": "electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "in.omlife.desktop",
+    "productName": "OmLife",
+    "publish": null,
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "toolbar.html",
+      "webview-preload.js",
+      "build/**/*"
+    ],
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "OmLife"
+    }
+  }
+}
