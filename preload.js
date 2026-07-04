@@ -1,17 +1,33 @@
 const PORTAL_URL = 'https://omlife.in/my-portal/';
 const BAR_H = 38;
 
-// Inject a <style> tag as early as possible so the page layout shifts
-// down BEFORE first paint — avoids any "cut off" flash and survives
-// WordPress theme CSS resets (uses !important + html-level margin,
-// which themes essentially never override).
-const style = document.createElement('style');
-style.textContent = `
-  html { margin-top: ${BAR_H}px !important; }
-  #ol-bar { }
-`;
-document.documentElement.appendChild(style);
+// ── Inject layout-shift CSS at the earliest possible moment ─────────────────
+// Preload scripts run before the DOM exists, so document.documentElement
+// may be null. We poll until <html> exists, then inject synchronously —
+// this guarantees it lands before first paint, with no flash and no
+// possibility of a WordPress theme overriding it (html-level + !important
+// beats virtually all theme CSS specificity).
+function injectLayoutCSS() {
+  if (!document.documentElement) {
+    // <html> not parsed yet — try again on the next microtask
+    requestAnimationFrame(injectLayoutCSS);
+    return;
+  }
+  const style = document.createElement('style');
+  style.id = 'ol-layout-style';
+  style.textContent = `
+    html {
+      margin-top: ${BAR_H}px !important;
+    }
+    body {
+      min-height: calc(100vh - ${BAR_H}px) !important;
+    }
+  `;
+  document.documentElement.insertBefore(style, document.documentElement.firstChild);
+}
+injectLayoutCSS();
 
+// ── Toolbar ───────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
 
   const bar = document.createElement('div');
@@ -29,8 +45,8 @@ window.addEventListener('DOMContentLoaded', () => {
   ].join(';');
 
   function mkSvg(path) {
-    return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+    return `<svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" stroke-width="1.6" stroke-linecap="round"
       stroke-linejoin="round" style="display:block;flex-shrink:0">${path}</svg>`;
   }
 
@@ -39,43 +55,47 @@ window.addEventListener('DOMContentLoaded', () => {
     if (id) b.id = id;
     b.title = title;
     b.innerHTML = mkSvg(path);
+    // Very quiet resting state — barely-there gray, matching a calm
+    // premium toolbar (macOS Safari / Notion style), not a HUD.
     b.style.cssText = [
       `width:${BAR_H + 4}px`,
       `height:${BAR_H}px`,
-      'padding:0','border:none',
+      'padding:0','border:none','margin:0',
       'background:transparent',
-      'color:rgba(255,255,255,0.38)',
+      'color:#4b4658',
       'cursor:pointer',
       'display:flex','align-items:center','justify-content:center',
       'flex-shrink:0',
       '-webkit-app-region:no-drag',
-      'transition:color 0.15s,background 0.15s',
+      'transition:color 0.15s ease,background 0.15s ease',
       'border-radius:0',
+      'outline:none',
+      'font:inherit',
     ].join(';');
-    b.onmouseenter = () => { b.style.color='rgba(196,181,253,0.85)'; b.style.background='rgba(139,92,246,0.10)'; };
-    b.onmouseleave = () => { b.style.color='rgba(255,255,255,0.38)'; b.style.background='transparent'; };
-    b.onmousedown  = () => { b.style.background='rgba(139,92,246,0.18)'; };
-    b.onmouseup    = () => { b.style.background='rgba(139,92,246,0.10)'; };
+    b.onmouseenter = () => { b.style.color='#a78bfa'; b.style.background='rgba(139,92,246,0.08)'; };
+    b.onmouseleave = () => { b.style.color='#4b4658'; b.style.background='transparent'; };
+    b.onmousedown  = () => { b.style.background='rgba(139,92,246,0.16)'; };
+    b.onmouseup    = () => { b.style.background='rgba(139,92,246,0.08)'; };
     b.onclick = onClick;
     return b;
   }
 
   function mkSep() {
     const d = document.createElement('div');
-    d.style.cssText = 'width:1px;height:14px;background:rgba(255,255,255,0.08);margin:0 2px;flex-shrink:0';
+    d.style.cssText = 'width:1px;height:14px;background:rgba(255,255,255,0.06);margin:0 3px;flex-shrink:0';
     return d;
   }
 
-  // ── zoom ─────────────────────────────────────────────────────────────────
+  // ── zoom state ───────────────────────────────────────────────────────────
   let zoom = 1.0;
   const STEP = 0.1, MIN = 0.5, MAX = 2.0;
 
   const badge = document.createElement('span');
   badge.style.cssText = [
     'font-size:10px','font-weight:600',
-    'color:rgba(196,181,253,0.9)',
-    'background:rgba(139,92,246,0.12)',
-    'border:1px solid rgba(139,92,246,0.2)',
+    'color:#a78bfa',
+    'background:rgba(139,92,246,0.10)',
+    'border:1px solid rgba(139,92,246,0.18)',
     'border-radius:4px',
     'padding:2px 6px',
     'min-width:32px','text-align:center',
@@ -84,6 +104,7 @@ window.addEventListener('DOMContentLoaded', () => {
     '-webkit-app-region:no-drag',
     'cursor:default','user-select:none',
     'flex-shrink:0',
+    'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif',
   ].join(';');
 
   function applyZoom() {
@@ -97,7 +118,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // ── LEFT GROUP ───────────────────────────────────────────────────────────
+  // ── LEFT group ───────────────────────────────────────────────────────────
   const left = document.createElement('div');
   left.style.cssText = 'display:flex;align-items:center;-webkit-app-region:no-drag;padding-left:6px;gap:0';
 
@@ -136,11 +157,11 @@ window.addEventListener('DOMContentLoaded', () => {
     () => location.reload()
   ));
 
-  // ── MIDDLE drag zone ─────────────────────────────────────────────────────
+  // ── middle drag zone ─────────────────────────────────────────────────────
   const mid = document.createElement('div');
   mid.style.cssText = 'flex:1;height:100%;-webkit-app-region:drag';
 
-  // ── RIGHT pad for native window control overlay ──────────────────────────
+  // ── right pad for native overlay window controls ─────────────────────────
   const right = document.createElement('div');
   right.style.cssText = 'width:138px;flex-shrink:0;-webkit-app-region:drag';
 
@@ -149,7 +170,7 @@ window.addEventListener('DOMContentLoaded', () => {
   bar.appendChild(right);
   document.body.prepend(bar);
 
-  // ── back button visibility ────────────────────────────────────────────────
+  // ── back button show/hide ────────────────────────────────────────────────
   function updateBack() {
     const on = window.location.href.startsWith(PORTAL_URL) ||
                window.location.href === 'https://omlife.in/my-portal';
