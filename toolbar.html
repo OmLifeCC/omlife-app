@@ -224,8 +224,11 @@ function createTab(url, activate) {
 
   wv.addEventListener('new-window', function(e) {
     e.preventDefault();
+    // Single-click links (even target="_blank") should NOT pop up a new
+    // tab/window — load them in the SAME tab. Only Ctrl+Shift+Click
+    // (handled via the preload ipc-message below) opens a new tab.
     if (e.url && e.url.indexOf('omlife.in') !== -1) {
-      createTab(e.url, true);
+      wv.loadURL(e.url);
     } else if (e.url) {
       window.electronAPI.openExternal(e.url);
     }
