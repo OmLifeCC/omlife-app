@@ -1,19 +1,18 @@
 // webview-preload.js
-// Injected into every site webview. Detects Ctrl/Cmd+Click on links and
-// tells the parent toolbar to open them in a NEW TAB instead of navigating.
+// Injected into every site webview.
+// - Single click  → normal navigation in the SAME tab (default browser behaviour)
+// - Ctrl+Shift+Click → open the link in a NEW tab
 const { ipcRenderer } = require('electron');
 
 window.addEventListener('click', (e) => {
-  // Only care about Ctrl (Win/Linux) or Cmd (Mac) + click
-  if (!e.ctrlKey && !e.metaKey) return;
+  // Only intercept Ctrl+Shift+Click (or Cmd+Shift on Mac)
+  if (!((e.ctrlKey || e.metaKey) && e.shiftKey)) return;
 
-  // Find the nearest anchor with an href
   let el = e.target;
   while (el && el.tagName !== 'A') el = el.parentElement;
   if (!el || !el.href) return;
 
   e.preventDefault();
   e.stopPropagation();
-  // Send up to the host page (toolbar.html)
   ipcRenderer.sendToHost('open-in-new-tab', el.href);
 }, true);
