@@ -87,13 +87,29 @@ ipcMain.on('win:minimize', () => win && win.minimize());
 ipcMain.on('win:maximize', () => win && (win.isMaximized() ? win.unmaximize() : win.maximize()));
 ipcMain.on('win:close',    () => win && win.close());
 
-// Ctrl+Shift+Click → open the link in a separate popup window
+// Ctrl+Shift+Click → open the link in a separate popup window.
+// Multiple popups can be open at once, so each one needs:
+//   1. A title that reflects the actual page (not a hardcoded "OmLife"),
+//      so Windows taskbar / Alt-Tab / minimized icons are distinguishable.
+//   2. A cascading spawn position, so new popups don't stack exactly on
+//      top of the previous one with no visible way to tell them apart.
+let popupCount = 0;
+
 ipcMain.on('win:popup', (event, url) => {
+  const cascadeOffset = (popupCount % 8) * 32; // wraps after 8 to avoid drifting off-screen
+  popupCount++;
+
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const baseX = primaryDisplay.bounds.x + 80;
+  const baseY = primaryDisplay.bounds.y + 60;
+
   const popup = new BrowserWindow({
     width: 900,
     height: 680,
     minWidth: 500,
     minHeight: 400,
+    x: baseX + cascadeOffset,
+    y: baseY + cascadeOffset,
     parent: win || undefined,
     icon: path.join(__dirname, 'build', 'icon.ico'),
     title: 'OmLife',
@@ -106,6 +122,14 @@ ipcMain.on('win:popup', (event, url) => {
       partition: 'persist:omlife',
     }
   });
+
+  // Keep the window title (and therefore its taskbar entry) in sync with
+  // the actual page title, so minimized popups are identifiable at a glance.
+  popup.webContents.on('page-title-updated', (event, title) => {
+    event.preventDefault();
+    popup.setTitle(title || 'OmLife');
+  });
+
   popup.loadURL(url);
 });
 
