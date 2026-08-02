@@ -1,13 +1,25 @@
-const { contextBridge, ipcRenderer, shell } = require('electron');
-const path = require('path');
-const { pathToFileURL } = require('url');
+const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
-  minimize:     () => ipcRenderer.send('win:minimize'),
-  maximize:     () => ipcRenderer.send('win:maximize'),
-  close:        () => ipcRenderer.send('win:close'),
-  openExternal: (url) => shell.openExternal(url),
-  openPopup:    (url) => ipcRenderer.send('win:popup', url),
-  zoomWebview:  (webContentsId, direction) => ipcRenderer.send('webview:zoom', webContentsId, direction),
-  webviewPreloadPath: () => pathToFileURL(path.join(__dirname, 'webview-preload.js')).toString(),
+  // Window controls
+  minimize: () => ipcRenderer.send('win:minimize'),
+  maximize: () => ipcRenderer.send('win:maximize'),
+  close:    () => ipcRenderer.send('win:close'),
+
+  // Auto-hide bar reveal/hide (main adjusts the content view bounds)
+  barShow: () => ipcRenderer.send('bar:show'),
+  barHide: () => ipcRenderer.send('bar:hide'),
+
+  // Navigation
+  navBack:    () => ipcRenderer.send('nav:back'),
+  navForward: () => ipcRenderer.send('nav:forward'),
+  navRefresh: () => ipcRenderer.send('nav:refresh'),
+  navPortal:  () => ipcRenderer.send('nav:portal'),
+
+  // Zoom (1 = in, -1 = out, 0 = reset)
+  zoomStep: (direction) => ipcRenderer.send('zoom:step', direction),
+
+  // State pushed from main → renderer
+  onNavState: (cb) => ipcRenderer.on('nav:state', (_e, s) => cb(s)),
+  onBarVisibility: (cb) => ipcRenderer.on('bar:visibility', (_e, v) => cb(v)),
 });
