@@ -193,7 +193,6 @@ const HOME   = 'https://omlife.in/my-portal/';
 const tabstrip  = document.getElementById('tabstrip');
 const viewsEl   = document.getElementById('views');
 const newTabBtn = document.getElementById('new-tab-btn');
-const badge     = document.getElementById('zoom-badge');
 const backBtn   = document.getElementById('back-btn');
 const backSep   = document.getElementById('back-sep');
 
@@ -226,7 +225,7 @@ function createTab(url, activate) {
   const titleEl = tabEl.querySelector('.tab-title');
   const closeEl = tabEl.querySelector('.tab-close');
 
-  const tab = { id: id, webview: wv, tabEl: tabEl, titleEl: titleEl, url: url, zoom: 1.0 };
+  const tab = { id: id, webview: wv, tabEl: tabEl, titleEl: titleEl, url: url };
   tabs.push(tab);
 
   tabEl.addEventListener('click', function(e) {
@@ -238,9 +237,6 @@ function createTab(url, activate) {
     closeTab(id);
   });
 
-  wv.addEventListener('dom-ready', function() {
-    wv.setZoomFactor(tab.zoom);
-  });
   wv.addEventListener('page-title-updated', function(e) {
     titleEl.textContent = e.title || 'OmLife';
   });
@@ -257,14 +253,12 @@ function createTab(url, activate) {
     } catch (err) {}
   });
 
-  // Click routing + zoom messages from the webview preload
+  // Click routing messages from the webview preload
   wv.addEventListener('ipc-message', function(e) {
     if (e.channel === 'open-in-new-tab' && e.args && e.args[0]) {
       createTab(e.args[0], true);
     } else if (e.channel === 'open-in-popup' && e.args && e.args[0]) {
       window.electronAPI.openPopup(e.args[0]);
-    } else if (e.channel === 'zoom-delta' && e.args && typeof e.args[0] === 'number') {
-      applyZoomStep(tab, e.args[0]);
     }
   });
 
@@ -279,7 +273,6 @@ function activateTab(id) {
     t.webview.classList.toggle('active', isActive);
     t.tabEl.classList.toggle('active', isActive);
     if (isActive) {
-      updateBadge(t.zoom);
       updateBackBtn(t.url);
     }
   });
@@ -315,22 +308,22 @@ function updateBackBtn(url) {
   backSep.style.display = onPortal ? 'none'  : 'block';
 }
 
-function updateBadge(zoom) {
-  var pct = Math.round(zoom * 100);
-  badge.style.display = pct === 100 ? 'none' : 'inline-block';
-  if (pct !== 100) badge.textContent = pct + '%';
-}
-
-// Shared zoom step logic used by the toolbar +/- buttons AND trackpad
-// pinch / Ctrl+wheel gestures forwarded from the webview preload.
+// Shared zoom step logic used by the toolbar +/- buttons. Dispatches a
+// synthetic Ctrl+wheel event into the webview — the same gesture Chromium's
+// native visual (pinch) zoom already responds to from a real trackpad/mouse.
+// This keeps button-zoom and pinch-zoom feeling identical: free scaling of
+// rendered pixels, no page-layout reflow.
 function applyZoomStep(tab, direction) {
-  var step = 0.1;
-  var next = direction > 0
-    ? Math.min(2.0, parseFloat((tab.zoom + step).toFixed(1)))
-    : Math.max(0.5, parseFloat((tab.zoom - step).toFixed(1)));
-  tab.zoom = next;
-  tab.webview.setZoomFactor(next);
-  if (tab.id === activeId) updateBadge(next);
+  // Negative deltaY = zoom in (matches natural "scroll up to zoom in" pinch feel)
+  var deltaY = direction > 0 ? -100 : 100;
+  tab.webview.sendInputEvent({
+    type: 'mouseWheel',
+    x: Math.floor(tab.webview.clientWidth / 2),
+    y: Math.floor(tab.webview.clientHeight / 2),
+    deltaX: 0,
+    deltaY: deltaY,
+    modifiers: ['control']
+  });
 }
 
 document.getElementById('nav-back').onclick = function() {
@@ -349,7 +342,7 @@ document.getElementById('zoom-out').onclick = function() {
 };
 document.getElementById('zoom-reset').onclick = function() {
   var t = getActive(); if (!t) return;
-  t.zoom = 1.0; t.webview.setZoomFactor(1.0); updateBadge(1.0);
+  t.webview.setZoomFactor(1.0); // hard reset to 100%, not an incremental step
 };
 document.getElementById('refresh').onclick = function() {
   var t = getActive(); if (t) t.webview.reload();
