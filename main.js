@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell, Menu, screen, ipcMain } = require('electron');
+const { app, BrowserWindow, shell, Menu, screen, ipcMain, webContents } = require('electron');
 const path = require('path');
 const fs   = require('fs');
 
@@ -63,11 +63,20 @@ function createWindow() {
   // attach setWindowOpenHandler to each webview's webContents as it attaches.
   // This is what actually stops the popup on a plain single click.
   win.webContents.on('did-attach-webview', (event, webContents) => {
-    // Enable Chromium's native "visual" zoom (pinch-zoom) instead of driving
-    // zoom manually via setZoomFactor. Visual zoom scales rendered pixels
-    // without reflowing the page layout — this is what makes Chrome's zoom
-    // feel free/unconstrained instead of "adjusting" content to fit.
-    webContents.setVisualZoomLevelLimits(1, 5);
+    // Chrome-like Ctrl+scroll / trackpad-pinch zoom. Electron's documented,
+    // reliable mechanism for this is the 'zoom-changed' event — fired
+    // automatically whenever the user does Ctrl+wheel or a trackpad pinch
+    // over this webContents. (Note: setVisualZoomLevelLimits is NOT used
+    // here — it's a known-buggy API for <webview> in current Electron and
+    // does not reliably fire at all; zoom-changed is the supported path.)
+    webContents.on('zoom-changed', (_event, zoomDirection) => {
+      const step = 0.1;
+      const current = webContents.getZoomFactor();
+      const next = zoomDirection === 'in'
+        ? Math.min(3.0, parseFloat((current + step).toFixed(2)))
+        : Math.max(0.5, parseFloat((current - step).toFixed(2)));
+      webContents.setZoomFactor(next);
+    });
 
     webContents.setWindowOpenHandler(({ url }) => {
       // Any attempt to open a new window (target=_blank, window.open, etc.)
@@ -92,6 +101,24 @@ function createWindow() {
 ipcMain.on('win:minimize', () => win && win.minimize());
 ipcMain.on('win:maximize', () => win && (win.isMaximized() ? win.unmaximize() : win.maximize()));
 ipcMain.on('win:close',    () => win && win.close());
+
+// Toolbar zoom +/- buttons: nudge a specific webview's zoom factor by its
+// webContents id (sent from the renderer via webview.getWebContentsId()).
+// direction: 1 = zoom in, -1 = zoom out, 0 = reset to 100%.
+ipcMain.on('webview:zoom', (event, webContentsId, direction) => {
+  const target = webContents.fromId(webContentsId);
+  if (!target) return;
+  if (direction === 0) {
+    target.setZoomFactor(1.0);
+    return;
+  }
+  const step = 0.1;
+  const current = target.getZoomFactor();
+  const next = direction > 0
+    ? Math.min(3.0, parseFloat((current + step).toFixed(2)))
+    : Math.max(0.5, parseFloat((current - step).toFixed(2)));
+  target.setZoomFactor(next);
+});
 
 // Ctrl+Shift+Click → open the link in a separate popup window.
 // Multiple popups can be open at once, so each one needs to be
