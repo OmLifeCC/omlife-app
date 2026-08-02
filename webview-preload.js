@@ -54,15 +54,8 @@ window.addEventListener('click', (e) => {
   }
 }, true);
 
-// Trackpad pinch (reported by Chromium as a wheel event with ctrlKey=true)
-// and Ctrl+mouse-wheel both land here. We stop the page from doing its own
-// native zoom and instead tell the host window to adjust setZoomFactor,
-// keeping zoom consistent with the toolbar's +/- buttons.
-window.addEventListener('wheel', (e) => {
-  if (!e.ctrlKey) return;
-  e.preventDefault();
-  // deltaY < 0  → pinch out / scroll up → zoom in
-  // deltaY > 0  → pinch in  / scroll down → zoom out
-  const direction = e.deltaY < 0 ? 1 : -1;
-  ipcRenderer.sendToHost('zoom-delta', direction);
-}, { passive: false });
+// Note: trackpad pinch-to-zoom and Ctrl+scroll-wheel zoom are NOT
+// intercepted here anymore. Chromium's native visual (pinch) zoom is
+// enabled at the main-process level via setVisualZoomLevelLimits, and
+// letting the browser handle it directly gives the same free, non-reflowing
+// zoom feel as real Chrome — scaling pixels without "adjusting" the layout.
