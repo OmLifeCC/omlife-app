@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: #0F0A1A;            /* shows behind bar + in the hotzone strip */
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    user-select: none;
+  }
+
+  /* Permanent invisible strip at the very top that catches hover to reveal. */
+  #hot-zone {
+    position: fixed; top: 0; left: 0; right: 0;
+    height: 6px; z-index: 30;
+  }
+
+  /* The control bar. Rendered by the window's own web contents; the native
+     content view is pushed below it when it's revealed. */
+  #bar {
+    position: fixed; top: 0; left: 0; right: 0;
+    height: 40px;
+    background: #0F0A1A;
+    border-bottom: 1px solid rgba(139,92,246,0.12);
+    display: flex; align-items: center;
+    -webkit-app-region: drag;
+    z-index: 20;
+    transform: translateY(-100%);
+    transition: transform 0.18s ease;
+  }
+  #bar.visible { transform: translateY(0); }
+
+  .group { display: flex; align-items: center; height: 100%; -webkit-app-region: no-drag; }
+  .left { padding-left: 6px; }
+  button {
+    width: 40px; height: 40px;
+    border: none; background: transparent;
+    color: #5a5370; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: color 0.15s, background 0.15s;
+    outline: none; -webkit-app-region: no-drag; flex-shrink: 0;
+  }
+  button:hover  { color: #a78bfa; background: rgba(139,92,246,0.09); }
+  button:active { background: rgba(139,92,246,0.18); }
+  button svg    { display: block; pointer-events: none; }
+  button:disabled { opacity: 0.3; cursor: default; }
+  button:disabled:hover { color: #5a5370; background: transparent; }
+  button.winbtn { width: 46px; color: rgba(255,255,255,0.35); }
+  button.winbtn:hover { color: #fff; background: rgba(255,255,255,0.07); }
+  #close-btn:hover { background: #c42b1c !important; color: #fff !important; }
+  .sep { width: 1px; height: 14px; background: rgba(255,255,255,0.07); margin: 0 2px; flex-shrink: 0; }
+  #back-btn, #back-sep { display: none; }
+  .drag-mid { flex: 1; height: 100%; -webkit-app-region: drag; }
+</style>
+</head>
+<body>
+
+<div id="hot-zone"></div>
+
+<div id="bar">
+  <div class="group left">
+    <button id="back-btn" title="Back to portal">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+    <div class="sep" id="back-sep"></div>
+    <button id="nav-back" title="Go back">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+    </button>
+    <button id="nav-fwd" title="Go forward">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+    </button>
+
+    <div class="sep"></div>
+
+    <button id="zoom-in" title="Zoom in">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    </button>
+    <button id="zoom-out" title="Zoom out">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    </button>
+    <button id="zoom-reset" title="Reset zoom">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3.51 15a9 9 0 1 0 .49-4.5"/><polyline points="3 3 3 11 11 11"/></svg>
+    </button>
+
+    <div class="sep"></div>
+
+    <button id="refresh" title="Refresh">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+    </button>
+  </div>
+
+  <div class="drag-mid"></div>
+
+  <div class="group">
+    <button class="winbtn" id="min-btn" title="Minimize">
+      <svg width="11" height="2" viewBox="0 0 11 2"><rect width="11" height="1.5" fill="currentColor"/></svg>
+    </button>
+    <button class="winbtn" id="max-btn" title="Maximize">
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><rect x="0.5" y="0.5" width="9" height="9" rx="1" stroke="currentColor" stroke-width="1.2"/></svg>
+    </button>
+    <button class="winbtn" id="close-btn" title="Close">
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/></svg>
+    </button>
+  </div>
+</div>
+
+<script>
+  const api = window.electronAPI;
+  const bar     = document.getElementById('bar');
+  const hotZone = document.getElementById('hot-zone');
+  const backBtn = document.getElementById('back-btn');
+  const backSep = document.getElementById('back-sep');
+  const navBack = document.getElementById('nav-back');
+  const navFwd  = document.getElementById('nav-fwd');
+
+  // ── Auto-hide reveal logic ────────────────────────────────────────────────
+  let hideTimer = null;
+  function show() { clearTimeout(hideTimer); api.barShow(); bar.classList.add('visible'); }
+  function scheduleHide() {
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(function () {
+      bar.classList.remove('visible');
+      api.barHide();
+    }, 350);
+  }
+  hotZone.addEventListener('mouseenter', show);
+  bar.addEventListener('mouseenter', show);
+  bar.addEventListener('mouseleave', scheduleHide);
+
+  // ── Button wiring ─────────────────────────────────────────────────────────
+  navBack.onclick = function () { api.navBack(); };
+  navFwd.onclick  = function () { api.navForward(); };
+  document.getElementById('refresh').onclick   = function () { api.navRefresh(); };
+  backBtn.onclick = function () { api.navPortal(); };
+  document.getElementById('zoom-in').onclick    = function () { api.zoomStep(1); };
+  document.getElementById('zoom-out').onclick   = function () { api.zoomStep(-1); };
+  document.getElementById('zoom-reset').onclick = function () { api.zoomStep(0); };
+  document.getElementById('min-btn').onclick    = function () { api.minimize(); };
+  document.getElementById('max-btn').onclick    = function () { api.maximize(); };
+  document.getElementById('close-btn').onclick  = function () { api.close(); };
+
+  // ── State updates from main ───────────────────────────────────────────────
+  api.onNavState(function (s) {
+    navBack.disabled = !s.canGoBack;
+    navFwd.disabled  = !s.canGoForward;
+    backBtn.style.display = s.onPortal ? 'none' : 'flex';
+    backSep.style.display = s.onPortal ? 'none' : 'block';
+  });
+</script>
+
+</body>
+</html>
