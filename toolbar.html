@@ -13,6 +13,25 @@
   }
   body { display: flex; flex-direction: column; }
 
+  /* Invisible hot-zone hugging the very top edge of the window.
+     Moving the mouse into this strip reveals the overlay bar. */
+  #hot-zone {
+    position: fixed; top: 0; left: 0; right: 0;
+    height: 8px; z-index: 30;
+  }
+
+  /* Bar + tabstrip are combined into one overlay that slides down from
+     above the window and floats on top of the content (views are always
+     full-height underneath). Hidden by default; reveals on hover-near-top. */
+  #overlay {
+    position: fixed; top: 0; left: 0; right: 0;
+    z-index: 25;
+    transform: translateY(-100%);
+    transition: transform 0.18s ease;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+  }
+  #overlay.visible { transform: translateY(0); }
+
   #bar {
     flex: 0 0 38px; height: 38px;
     background: #0F0A1A;
@@ -49,7 +68,7 @@
   .drag-mid { flex: 1; height: 100%; -webkit-app-region: drag; }
 
   #tabstrip {
-    flex: 0 0 36px; height: 36px;
+    flex: 0 0 36px; height: 36px; width: 100%;
     background: #0B0712;
     border-bottom: 1px solid rgba(139,92,246,0.12);
     display: flex; align-items: stretch;
@@ -93,7 +112,10 @@
   }
   #new-tab-btn:hover { color: #a78bfa; background: rgba(139,92,246,0.08); }
 
-  #views { flex: 1 1 auto; position: relative; background: #fff; }
+  #views {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: #fff; z-index: 1;
+  }
   webview {
     position: absolute; top: 0; left: 0;
     width: 100%; height: 100%;
@@ -104,6 +126,9 @@
 </head>
 <body>
 
+<div id="hot-zone"></div>
+
+<div id="overlay">
 <div id="bar">
   <div class="group left">
     <button id="back-btn" title="Back to portal">
@@ -157,6 +182,7 @@
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
   </button>
 </div>
+</div><!-- /#overlay -->
 
 <div id="views"></div>
 
@@ -337,6 +363,33 @@ document.addEventListener('keydown', function(e) {
 });
 
 createTab(HOME, true);
+
+// ── Auto-hiding overlay (fullscreen content mode) ──────────────────────────
+// Hidden by default. Moving the mouse into the top hot-zone reveals the
+// bar + tabstrip as an overlay; moving away hides it again after a short
+// delay so it doesn't flicker on accidental brushes near the edge.
+const overlay = document.getElementById('overlay');
+const hotZone = document.getElementById('hot-zone');
+let hideTimer = null;
+
+function showOverlay() {
+  clearTimeout(hideTimer);
+  overlay.classList.add('visible');
+}
+function scheduleHide() {
+  clearTimeout(hideTimer);
+  hideTimer = setTimeout(function() {
+    overlay.classList.remove('visible');
+  }, 350);
+}
+
+hotZone.addEventListener('mouseenter', showOverlay);
+overlay.addEventListener('mouseenter', showOverlay);
+overlay.addEventListener('mouseleave', scheduleHide);
+
+// If the mouse leaves the whole window (e.g. moves up past the title bar
+// into the OS chrome) while the overlay is visible, hide it too.
+document.addEventListener('mouseleave', scheduleHide);
 </script>
 
 </body>
