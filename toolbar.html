@@ -308,22 +308,12 @@ function updateBackBtn(url) {
   backSep.style.display = onPortal ? 'none'  : 'block';
 }
 
-// Shared zoom step logic used by the toolbar +/- buttons. Dispatches a
-// synthetic Ctrl+wheel event into the webview — the same gesture Chromium's
-// native visual (pinch) zoom already responds to from a real trackpad/mouse.
-// This keeps button-zoom and pinch-zoom feeling identical: free scaling of
-// rendered pixels, no page-layout reflow.
+// Zoom buttons nudge the active tab's webview zoom via the main process,
+// which drives webContents.setZoomFactor directly — the same mechanism
+// Electron uses for real Ctrl+scroll/pinch zoom (see main.js zoom-changed
+// listener), so button-zoom and gesture-zoom always stay in sync.
 function applyZoomStep(tab, direction) {
-  // Negative deltaY = zoom in (matches natural "scroll up to zoom in" pinch feel)
-  var deltaY = direction > 0 ? -100 : 100;
-  tab.webview.sendInputEvent({
-    type: 'mouseWheel',
-    x: Math.floor(tab.webview.clientWidth / 2),
-    y: Math.floor(tab.webview.clientHeight / 2),
-    deltaX: 0,
-    deltaY: deltaY,
-    modifiers: ['control']
-  });
+  window.electronAPI.zoomWebview(tab.webview.getWebContentsId(), direction);
 }
 
 document.getElementById('nav-back').onclick = function() {
@@ -342,7 +332,7 @@ document.getElementById('zoom-out').onclick = function() {
 };
 document.getElementById('zoom-reset').onclick = function() {
   var t = getActive(); if (!t) return;
-  t.webview.setZoomFactor(1.0); // hard reset to 100%, not an incremental step
+  applyZoomStep(t, 0);
 };
 document.getElementById('refresh').onclick = function() {
   var t = getActive(); if (t) t.webview.reload();
