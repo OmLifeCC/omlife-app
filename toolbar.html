@@ -257,12 +257,14 @@ function createTab(url, activate) {
     } catch (err) {}
   });
 
-  // Click routing messages from the webview preload
+  // Click routing + zoom messages from the webview preload
   wv.addEventListener('ipc-message', function(e) {
     if (e.channel === 'open-in-new-tab' && e.args && e.args[0]) {
       createTab(e.args[0], true);
     } else if (e.channel === 'open-in-popup' && e.args && e.args[0]) {
       window.electronAPI.openPopup(e.args[0]);
+    } else if (e.channel === 'zoom-delta' && e.args && typeof e.args[0] === 'number') {
+      applyZoomStep(tab, e.args[0]);
     }
   });
 
@@ -319,6 +321,18 @@ function updateBadge(zoom) {
   if (pct !== 100) badge.textContent = pct + '%';
 }
 
+// Shared zoom step logic used by the toolbar +/- buttons AND trackpad
+// pinch / Ctrl+wheel gestures forwarded from the webview preload.
+function applyZoomStep(tab, direction) {
+  var step = 0.1;
+  var next = direction > 0
+    ? Math.min(2.0, parseFloat((tab.zoom + step).toFixed(1)))
+    : Math.max(0.5, parseFloat((tab.zoom - step).toFixed(1)));
+  tab.zoom = next;
+  tab.webview.setZoomFactor(next);
+  if (tab.id === activeId) updateBadge(next);
+}
+
 document.getElementById('nav-back').onclick = function() {
   var t = getActive(); if (t && t.webview.canGoBack()) t.webview.goBack();
 };
@@ -327,13 +341,11 @@ document.getElementById('nav-fwd').onclick = function() {
 };
 document.getElementById('zoom-in').onclick = function() {
   var t = getActive(); if (!t) return;
-  t.zoom = Math.min(2.0, parseFloat((t.zoom + 0.1).toFixed(1)));
-  t.webview.setZoomFactor(t.zoom); updateBadge(t.zoom);
+  applyZoomStep(t, 1);
 };
 document.getElementById('zoom-out').onclick = function() {
   var t = getActive(); if (!t) return;
-  t.zoom = Math.max(0.5, parseFloat((t.zoom - 0.1).toFixed(1)));
-  t.webview.setZoomFactor(t.zoom); updateBadge(t.zoom);
+  applyZoomStep(t, -1);
 };
 document.getElementById('zoom-reset').onclick = function() {
   var t = getActive(); if (!t) return;
