@@ -63,6 +63,12 @@ function createWindow() {
   // attach setWindowOpenHandler to each webview's webContents as it attaches.
   // This is what actually stops the popup on a plain single click.
   win.webContents.on('did-attach-webview', (event, webContents) => {
+    // Enable Chromium's native "visual" zoom (pinch-zoom) instead of driving
+    // zoom manually via setZoomFactor. Visual zoom scales rendered pixels
+    // without reflowing the page layout — this is what makes Chrome's zoom
+    // feel free/unconstrained instead of "adjusting" content to fit.
+    webContents.setVisualZoomLevelLimits(1, 5);
+
     webContents.setWindowOpenHandler(({ url }) => {
       // Any attempt to open a new window (target=_blank, window.open, etc.)
       // is DENIED as a popup. Instead we route it based on modifier keys,
@@ -88,16 +94,21 @@ ipcMain.on('win:maximize', () => win && (win.isMaximized() ? win.unmaximize() : 
 ipcMain.on('win:close',    () => win && win.close());
 
 // Ctrl+Shift+Click → open the link in a separate popup window.
-// Multiple popups can be open at once, so each one needs:
-//   1. A title that reflects the actual page (not a hardcoded "OmLife"),
-//      so Windows taskbar / Alt-Tab / minimized icons are distinguishable.
-//   2. A cascading spawn position, so new popups don't stack exactly on
-//      top of the previous one with no visible way to tell them apart.
+// Multiple popups can be open at once, so each one needs to be
+// distinguishable in the Windows taskbar / Alt-Tab / when minimized:
+//   1. An immediate, unique placeholder title set BEFORE the page loads
+//      (Windows creates the taskbar entry right away, using whatever title
+//      the window has at creation time — waiting for the page's own title
+//      to arrive later is often too late if you minimize quickly).
+//   2. That title is then replaced with the real page title once it loads.
+//   3. A cascading spawn position so windows don't stack exactly on top of
+//      each other while still open and visible on screen.
 let popupCount = 0;
 
 ipcMain.on('win:popup', (event, url) => {
-  const cascadeOffset = (popupCount % 8) * 32; // wraps after 8 to avoid drifting off-screen
   popupCount++;
+  const thisPopupNumber = popupCount;
+  const cascadeOffset = ((popupCount - 1) % 8) * 32; // wraps after 8 to avoid drifting off-screen
 
   const primaryDisplay = screen.getPrimaryDisplay();
   const baseX = primaryDisplay.bounds.x + 80;
@@ -112,7 +123,9 @@ ipcMain.on('win:popup', (event, url) => {
     y: baseY + cascadeOffset,
     parent: win || undefined,
     icon: path.join(__dirname, 'build', 'icon.ico'),
-    title: 'OmLife',
+    // Unique placeholder immediately, so even if minimized before the page
+    // loads, the taskbar entry is never just an ambiguous "OmLife".
+    title: 'OmLife — Loading ' + thisPopupNumber + '…',
     backgroundColor: '#ffffff',
     autoHideMenuBar: true,
     webPreferences: {
@@ -123,11 +136,17 @@ ipcMain.on('win:popup', (event, url) => {
     }
   });
 
-  // Keep the window title (and therefore its taskbar entry) in sync with
-  // the actual page title, so minimized popups are identifiable at a glance.
+  // Give this popup its own taskbar identity so Windows doesn't merge/group
+  // it ambiguously with the main window or other popups — each one gets its
+  // own clickable taskbar button instead of being stacked under one icon.
+  popup.setAppDetails({
+    appId: 'in.omlife.desktop.popup.' + thisPopupNumber,
+  });
+
+  // As soon as the real page title is known, replace the placeholder.
   popup.webContents.on('page-title-updated', (event, title) => {
     event.preventDefault();
-    popup.setTitle(title || 'OmLife');
+    popup.setTitle(title && title.trim() ? title : ('OmLife ' + thisPopupNumber));
   });
 
   popup.loadURL(url);
