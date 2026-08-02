@@ -1,6 +1,6 @@
 {
   "name": "omlife-desktop",
-  "version": "2.0.5",
+  "version": "3.0.0",
   "description": "OmLife Desktop App",
   "main": "main.js",
   "author": "OmLife",
@@ -23,8 +23,7 @@
     "files": [
       "main.js",
       "preload.js",
-      "toolbar.html",
-      "webview-preload.js",
+      "overlay.html",
       "build/**/*"
     ],
     "win": {
