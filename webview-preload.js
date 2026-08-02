@@ -3,7 +3,34 @@
 //   • single click          → same tab (default, let it navigate)
 //   • Ctrl + click           → new tab
 //   • Ctrl + Shift + click   → popup window
+// Also handles trackpad pinch-to-zoom / Ctrl+scroll-wheel zoom (like Chrome).
 const { ipcRenderer } = require('electron');
+
+// Inject a slim, unobtrusive scrollbar style into every page — overrides
+// the default thick OS/Chromium scrollbar with something closer to the
+// app's dark, minimal aesthetic. Runs once the page DOM is ready.
+function injectScrollbarStyle() {
+  if (document.getElementById('__omlife_scrollbar_style__')) return;
+  const style = document.createElement('style');
+  style.id = '__omlife_scrollbar_style__';
+  style.textContent = `
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb {
+      background-color: rgba(139,92,246,0.35);
+      border-radius: 8px;
+    }
+    ::-webkit-scrollbar-thumb:hover { background-color: rgba(139,92,246,0.55); }
+    ::-webkit-scrollbar-corner { background: transparent; }
+  `;
+  (document.head || document.documentElement).appendChild(style);
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', injectScrollbarStyle);
+} else {
+  injectScrollbarStyle();
+}
 
 window.addEventListener('click', (e) => {
   const ctrl  = e.ctrlKey || e.metaKey;
@@ -26,3 +53,16 @@ window.addEventListener('click', (e) => {
     ipcRenderer.sendToHost('open-in-new-tab', el.href);
   }
 }, true);
+
+// Trackpad pinch (reported by Chromium as a wheel event with ctrlKey=true)
+// and Ctrl+mouse-wheel both land here. We stop the page from doing its own
+// native zoom and instead tell the host window to adjust setZoomFactor,
+// keeping zoom consistent with the toolbar's +/- buttons.
+window.addEventListener('wheel', (e) => {
+  if (!e.ctrlKey) return;
+  e.preventDefault();
+  // deltaY < 0  → pinch out / scroll up → zoom in
+  // deltaY > 0  → pinch in  / scroll down → zoom out
+  const direction = e.deltaY < 0 ? 1 : -1;
+  ipcRenderer.sendToHost('zoom-delta', direction);
+}, { passive: false });
